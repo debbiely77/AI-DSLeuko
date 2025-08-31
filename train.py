@@ -25,7 +25,7 @@ from monai.transforms import (
     ScaleIntensity,
 )
 
-parser = argparse.ArgumentParser(description='ScattergramClassification')
+parser = argparse.ArgumentParser(description='Classification')
 parser = argparse.ArgumentParser()
 parser.add_argument('-cfg', '--cfg', default='config', type=str)
 args = parser.parse_args()
