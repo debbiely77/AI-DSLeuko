@@ -26,35 +26,7 @@ def train_epoch(model,
     model.train()
     start_time = time.time()
     run_loss = AverageMeter()
-    if args.modality == 'monoIm':
-        for idx, batch_data in enumerate(loader):
-            data, target,name = batch_data
-            data, target = data.cuda(), target.cuda()
-            for param in model.parameters(): param.grad = None
-            with autocast(enabled=args.amp):
-                if args.model=='VIT':
-                    logits,_=model(data)
-                else:
-                    logits = model(data)
-                loss = loss_func(logits, target)
-            if args.amp:
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss.backward()
-                optimizer.step()
-            run_loss.update(loss.item(), n=args.batch_size)
-            # logger.info(f'Epoch {epoch}/{args.max_epochs} {idx}/{len(loader)} loss:{run_loss.avg} time {time.time() - start_time}s')
-            logger.info('Epoch {}/{} {}/{} loss:{:.4f} time {:.2f}s'.format(epoch, args.max_epochs, idx, len(loader),
-                                                                            run_loss.avg, time.time() - start_time))
-            alarm, des = Alarm()
-            if alarm == 1:
-                logger.info(f'Current temprature is out of control due to {des}')
-                while alarm:
-                    sleep(args.sleep)
-                    alarm, _ = Alarm()
-    elif args.modality == 'multi':
+    if args.modality == 'multi':
         for idx, batch_data in enumerate(loader):
             data, target,digits,name = batch_data
             digits = digits.squeeze(dim=1)
@@ -80,36 +52,7 @@ def train_epoch(model,
                 while alarm:
                     sleep(args.sleep)
                     alarm, _ = Alarm()
-    elif args.modality == 'monoDigit':
-        for idx, batch_data in enumerate(loader):
-            digits, target,  name = batch_data
-            digits = digits.squeeze(dim=1)#.float()
-            target, digits = target.cuda(), digits.cuda()
-            for param in model.parameters(): param.grad = None
-            with autocast(enabled=args.amp):
-                logits = model(digits)
-                if args.loss=='MultiLabelMargin':
-                    loss=loss_func(torch.argmax(logits, dim=1).float(), target)
-                else:
-                    loss = loss_func(logits, target)
-            if args.amp:
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss.backward()
-                optimizer.step()
-            run_loss.update(loss.item(), n=args.batch_size)
-            # logger.info(f'Epoch {epoch}/{args.max_epochs} {idx}/{len(loader)} loss:{run_loss.avg} time {time.time() - start_time}s')
-            logger.info('Epoch {}/{} {}/{} loss:{:.4f} time {:.2f}s'.format(epoch, args.max_epochs, idx, len(loader),
-                                                                            run_loss.avg, time.time() - start_time))
-            alarm, des = Alarm()
-            if alarm == 1:
-                logger.info(f'Current temprature is out of control due to {des}')
-                while alarm:
-                    sleep(args.sleep)
-                    alarm, _ = Alarm()
-
+    
     return run_loss.avg
 
 
@@ -128,31 +71,13 @@ def val_epoch(model,
     with torch.no_grad():
         y_pred = torch.tensor([], dtype=torch.float32).cuda()
         y = torch.tensor([], dtype=torch.long).cuda()
-        if args.modality == 'monoIm':
-            for idx, batch_data in enumerate(loader):
-                data, target,name = batch_data
-                data, target = data.cuda(), target.cuda()
-                if args.model=='VIT':
-                    y_pred_temp, _ =model(data)
-                    y_pred=torch.cat([y_pred, y_pred_temp], dim=0)
-                else:
-                    y_pred = torch.cat([y_pred, model(data)], dim=0)
-                y = torch.cat([y, target], dim=0)
-        elif args.modality=='multi':
+        if args.modality=='multi':
             for idx, batch_data in enumerate(loader):
                 data, target,digits,name = batch_data
                 digits=digits.squeeze(dim=1)
                 data, target,digits = data.cuda(), target.cuda(),digits.cuda()
                 y_pred = torch.cat([y_pred, model(data,digits)], dim=0)
-                y = torch.cat([y, target], dim=0)
-        elif args.modality=='monoDigit':
-            for idx, batch_data in enumerate(loader):
-                digits, target,name = batch_data
-                digits=digits.squeeze(dim=1)#.float()
-                digits, target = digits.cuda(), target.cuda(),
-                y_pred = torch.cat([y_pred, model(digits)], dim=0)
-                y = torch.cat([y, target], dim=0)
-
+                y = torch.cat([y, target], dim=0)        
         y_onehot = [y_trans(i) for i in decollate_batch(y, detach=False)]
         y_pred_act = [y_pred_trans(i) for i in decollate_batch(y_pred)]
         acc_func(y_pred_act, y_onehot)
